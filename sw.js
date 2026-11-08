@@ -1,5 +1,5 @@
 /* shdcam service worker: offline shell, stale-while-revalidate for same-origin files */
-const V = 'shdcam-03d51500de';
+const V = 'shdcam-30ad28df7d';
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

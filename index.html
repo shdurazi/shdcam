@@ -1005,7 +1005,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const pad2 = n => String(n).padStart(2, '0');
 const even = n => Math.max(2, Math.round(n / 2) * 2);
 const EMBEDDED = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
-const BUILD = '9526d42';
+const BUILD = '8f7d910';
 const store = {
   get(k, d) { try { const v = localStorage.getItem('fc.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('fc.' + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
@@ -2135,26 +2135,45 @@ async function openCamera(facing, deviceId) {
   const dev = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: facing } };
   const tries = [
     { ...dev, width: { ideal: portrait ? 1440 : 1920 }, height: { ideal: portrait ? 1920 : 1440 }, frameRate: { ideal: 30 } },
-    { ...dev, width: { ideal: 1920 }, height: { ideal: 1440 } },
     { ...dev },
     { facingMode: { ideal: facing } },
     true
   ];
-  const fatal = e => e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'NotFoundError');
-  let err = null, firstOk = -1;
-  for (let i = 0; i < tries.length; i++) {
-    let st;
-    try { st = await md.getUserMedia({ video: tries[i], audio: false }); }
-    catch (e) { err = e; if (fatal(e)) break; continue; }
-    const tr = st.getVideoTracks()[0], s = tr && tr.getSettings ? tr.getSettings() : {};
-    const ratio = s.width && s.height ? Math.max(s.width, s.height) / Math.min(s.width, s.height) : 4 / 3;
-    /* the sensor is 4:3. A 16:9 stream is a crop of it (a narrower field of view, which looks zoomed in), so look for a 4:3 one first */
-    if (ratio <= 1.6 || i === tries.length - 1) return st;
-    if (firstOk < 0) firstOk = i;
-    st.getTracks().forEach(t => t.stop());
+  let err = null;
+  for (const v of tries) {
+    try { return await md.getUserMedia({ video: v, audio: false }); }
+    catch (e) {
+      err = e;
+      if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'NotFoundError')) break;
+      /* the camera can still be releasing after a stop (switching lens, flipping): give it a moment before the next try */
+      if (e && (e.name === 'NotReadableError' || e.name === 'AbortError')) await sleep(450);
+    }
   }
-  if (firstOk >= 0) return md.getUserMedia({ video: tries[firstOk], audio: false });
   throw err;
+}
+/* The sensor is 4:3. If the browser handed over a 16:9 stream (a crop of it: a narrower field of view that looks zoomed in),
+   ask the same track for 4:3 in place. The stream is never closed, and the old format is asked back if nothing helps. */
+async function widenView(tr) {
+  const fmt = r => (r && r.width && r.height ? r.width + 'x' + r.height : '');
+  const ratio = r => (r && r.width && r.height ? Math.max(r.width, r.height) / Math.min(r.width, r.height) : 4 / 3);
+  try {
+    if (!tr.applyConstraints || !tr.getSettings) return null;
+    const s0 = tr.getSettings();
+    if (ratio(s0) <= 1.6) return null;
+    const variants = [
+      { width: { ideal: 1920 }, height: { ideal: 1440 } },
+      { aspectRatio: { ideal: 4 / 3 } },
+      { width: { ideal: 1600 }, height: { ideal: 1200 }, aspectRatio: { ideal: 4 / 3 } }
+    ];
+    for (const v of variants) {
+      try { await tr.applyConstraints(v); } catch (e) { continue; }
+      await sleep(150);
+      const s1 = tr.getSettings();
+      if (ratio(s1) <= 1.6) return { from: fmt(s0), to: fmt(s1) };
+    }
+    await tr.applyConstraints({ width: { ideal: s0.width }, height: { ideal: s0.height } }).catch(() => { /* keep as is */ });
+    return { from: fmt(s0), to: fmt(tr.getSettings()), failed: true };
+  } catch (e) { return null; }
 }
 let wl = null;
 async function wake(on) {
@@ -2175,6 +2194,7 @@ async function startLive(facing, deviceId) {
   try {
     const stream = await openCamera(facing, deviceId);
     const tr = stream.getVideoTracks()[0];
+    const fov = await widenView(tr);
     const v = document.createElement('video');
     v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.srcObject = stream;
     await v.play().catch(() => { /* autoplay muted should pass */ });
@@ -2185,7 +2205,7 @@ async function startLive(facing, deviceId) {
     if (deviceId && got && got !== deviceId) store.set('dev_' + facing, '');   /* the saved lens is gone: forget it */
     let ic = null;
     if (window.ImageCapture) { try { ic = new ImageCapture(tr); } catch (e) { ic = null; } }
-    S.live = { stream, track: tr, video: v, caps, ic, hw: 1, sw: 1, z: 1, facing, audio: null };
+    S.live = { stream, track: tr, video: v, caps, ic, hw: 1, sw: 1, z: 1, facing, audio: null, fov };
     S.facing = facing; S.zoom = 1; S.flash = false;
     if (S.src && S.src.kind !== 'live') S.parked = S.src;
     setSource({ kind: 'live', el: v, w: v.videoWidth, h: v.videoHeight, name: 'live' }, true);
@@ -2194,7 +2214,7 @@ async function startLive(facing, deviceId) {
     return true;
   } catch (e) {
     const n = e && e.name;
-    toast(n === 'NotAllowedError' || n === 'SecurityError' ? 'إذن الكاميرا مرفوض. فعّله من إعدادات الموقع ثم اضغط LIVE' : n === 'NotFoundError' ? 'لا توجد كاميرا متاحة' : 'تعذّر تشغيل الكاميرا', 3200);
+    toast(n === 'NotAllowedError' || n === 'SecurityError' ? 'إذن الكاميرا مرفوض. فعّله من إعدادات الموقع ثم اضغط LIVE' : n === 'NotFoundError' ? 'لا توجد كاميرا متاحة' : 'تعذّر تشغيل الكاميرا' + (n ? ' (\u2066' + n + '\u2069)' : ''), 3200);
     if (S.src && S.src.kind === 'live') restoreParked();
     updateUI();
     return false;
@@ -2359,6 +2379,7 @@ function camInfo(body) {
     'الزوم الحالي: ' + ltr(st.zoom != null ? (+st.zoom).toFixed(2) : '—') + ' (المدى ' + z + ')',
     'أقصى صورة: ' + ltr(pc),
     'الكاميرا: ' + ltr(tr.label || '—'),
+    ...(L.fov ? ['تعديل المجال: ' + ltr(L.fov.from + ' > ' + L.fov.to) + (L.fov.failed ? ' (ما نفع)' : '')] : []),
     'النسخة: ' + ltr('v' + BUILD)
   ];
   box.textContent = lines.join('\n');
