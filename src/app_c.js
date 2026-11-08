@@ -5,18 +5,30 @@ function detectLive() {
   try { const pp = document.permissionsPolicy || document.featurePolicy; if (pp && pp.allowsFeature) allowed = pp.allowsFeature('camera'); } catch (e) { allowed = true; }
   S.canLive = !!(md && md.getUserMedia) && window.isSecureContext !== false && allowed;
 }
-async function openCamera(facing) {
+async function openCamera(facing, deviceId) {
   const md = navigator.mediaDevices, portrait = innerHeight >= innerWidth;
+  const dev = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: facing } };
   const tries = [
-    { facingMode: { ideal: facing }, width: { ideal: portrait ? 1440 : 1920 }, height: { ideal: portrait ? 1920 : 1440 }, frameRate: { ideal: 30 } },
+    { ...dev, width: { ideal: portrait ? 1440 : 1920 }, height: { ideal: portrait ? 1920 : 1440 }, frameRate: { ideal: 30 } },
+    { ...dev, width: { ideal: 1920 }, height: { ideal: 1440 } },
+    { ...dev },
     { facingMode: { ideal: facing } },
     true
   ];
-  let err = null;
-  for (const v of tries) {
-    try { return await md.getUserMedia({ video: v, audio: false }); }
-    catch (e) { err = e; if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'NotFoundError')) break; }
+  const fatal = e => e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'NotFoundError');
+  let err = null, firstOk = -1;
+  for (let i = 0; i < tries.length; i++) {
+    let st;
+    try { st = await md.getUserMedia({ video: tries[i], audio: false }); }
+    catch (e) { err = e; if (fatal(e)) break; continue; }
+    const tr = st.getVideoTracks()[0], s = tr && tr.getSettings ? tr.getSettings() : {};
+    const ratio = s.width && s.height ? Math.max(s.width, s.height) / Math.min(s.width, s.height) : 4 / 3;
+    /* the sensor is 4:3. A 16:9 stream is a crop of it (a narrower field of view, which looks zoomed in), so look for a 4:3 one first */
+    if (ratio <= 1.6 || i === tries.length - 1) return st;
+    if (firstOk < 0) firstOk = i;
+    st.getTracks().forEach(t => t.stop());
   }
+  if (firstOk >= 0) return md.getUserMedia({ video: tries[firstOk], audio: false });
   throw err;
 }
 let wl = null;
@@ -30,12 +42,13 @@ function restoreParked() {
   const p = S.parked; S.parked = null;
   if (p) setSource(p, true); else loadSample().catch(() => { /* ignore */ });
 }
-async function startLive(facing) {
+async function startLive(facing, deviceId) {
   if (S.live || S.starting || !S.canLive) return false;
   S.starting = true;
   facing = facing || S.facing;
+  if (deviceId === undefined) deviceId = store.get('dev_' + facing, '') || undefined;
   try {
-    const stream = await openCamera(facing);
+    const stream = await openCamera(facing, deviceId);
     const tr = stream.getVideoTracks()[0];
     const v = document.createElement('video');
     v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.srcObject = stream;
@@ -43,6 +56,8 @@ async function startLive(facing) {
     for (let i = 0; i < 80 && !v.videoWidth; i++) await sleep(50);
     if (!v.videoWidth) { stream.getTracks().forEach(t => t.stop()); throw new Error('no video'); }
     const caps = tr.getCapabilities ? tr.getCapabilities() : {};
+    const got = tr.getSettings ? tr.getSettings().deviceId : '';
+    if (deviceId && got && got !== deviceId) store.set('dev_' + facing, '');   /* the saved lens is gone: forget it */
     let ic = null;
     if (window.ImageCapture) { try { ic = new ImageCapture(tr); } catch (e) { ic = null; } }
     S.live = { stream, track: tr, video: v, caps, ic, hw: 1, sw: 1, z: 1, facing, audio: null };
@@ -75,17 +90,26 @@ function stopLive(replacing) {
   updateUI();
 }
 function toggleLive() { if (S.live) stopLive(); else startLive(); }
-async function flipCamera() {
+async function restartLive(f, deviceId) {
   const L = S.live;
-  if (!L || S.rec || S.starting) return;
-  const f = S.facing === 'user' ? 'environment' : 'user';
+  if (!L || S.rec || S.starting) return false;
   stopLoop();
   try { L.stream.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
   try { if (L.audio) L.audio.getTracks().forEach(t => t.stop()); } catch (e) { /* ignore */ }
   S.live = null;
-  const ok = await startLive(f);
+  const ok = await startLive(f, deviceId);
   if (!ok && !S.live) updateUI();
   tick(12);
+  return ok;
+}
+function flipCamera() { return restartLive(S.facing === 'user' ? 'environment' : 'user'); }
+async function switchCamera(id) {
+  if (!S.live || !id) return;
+  const f = S.facing;
+  store.set('dev_' + f, id);
+  const ok = await restartLive(f, id);
+  if (!ok) store.set('dev_' + f, '');
+  if (proTab === 'cam' && $('#shPro').classList.contains('open')) buildPro('cam');
 }
 
 /* ---------- zoom / lens / focus ---------- */
@@ -121,7 +145,9 @@ function buildLens() {
   if (!L) return;
   const r = zoomRange(L);
   let cand = [0.5, 1, 2, 3, 5, 10].filter(p => p >= r[0] - 1e-6 && p <= r[1] + 1e-6);
-  if (cand.length > 4) cand = [0.5, 1, 2, 5, 10].filter(p => cand.includes(p)).slice(0, 4);
+  /* a camera that can zoom out below 1x (ultra-wide) gets its own widest button, e.g. 0.6x */
+  if (r[0] < 0.95 && !cand.some(p => p < 1)) cand.unshift(Math.ceil(r[0] * 10 - 1e-6) / 10);
+  while (cand.length > 5) cand.splice(cand.includes(10) ? cand.indexOf(10) : cand.indexOf(3), 1);
   L.presets = cand;
   if (cand.length < 2) { el.dataset.off = '1'; return; }
   delete el.dataset.off;
@@ -197,11 +223,54 @@ async function countdown(n) {
 function flashAnim() { const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
 
 /* ---------- manual camera panel ---------- */
+function camInfo(body) {
+  const L = S.live, tr = L.track, c = L.caps || {}, st = tr.getSettings ? tr.getSettings() : {}, v = L.video;
+  const box = document.createElement('div'); box.className = 'info';
+  const ltr = t => '\u2066' + t + '\u2069';   /* keep numbers and device names left-to-right inside the Arabic lines */
+  const z = c.zoom ? ltr((+c.zoom.min).toFixed(2) + ' - ' + (+c.zoom.max).toFixed(1)) : 'غير مدعوم';
+  const pc = L.pcaps && L.pcaps.imageWidth ? L.pcaps.imageWidth.max + 'x' + L.pcaps.imageHeight.max : '—';
+  const lines = [
+    'البث: ' + ltr(v.videoWidth + 'x' + v.videoHeight),
+    'الزوم الحالي: ' + ltr(st.zoom != null ? (+st.zoom).toFixed(2) : '—') + ' (المدى ' + z + ')',
+    'أقصى صورة: ' + ltr(pc),
+    'الكاميرا: ' + ltr(tr.label || '—'),
+    'النسخة: ' + ltr('v' + BUILD)
+  ];
+  box.textContent = lines.join('\n');
+  body.appendChild(box);
+  if (L.ic && L.pcaps === undefined) {
+    L.ic.getPhotoCapabilities()
+      .then(p => { L.pcaps = p; if (S.live === L && proTab === 'cam') buildPro('cam'); })
+      .catch(() => { L.pcaps = null; });
+  }
+  const md = navigator.mediaDevices;
+  if (!md || !md.enumerateDevices) return;
+  const wrap = document.createElement('div'); body.appendChild(wrap);
+  md.enumerateDevices().then(list => {
+    if (S.live !== L || !wrap.isConnected) return;
+    const cams = list.filter(d => d.kind === 'videoinput');
+    const side = S.facing === 'user' ? /front|user|أمام/i : /back|rear|environment|خلف/i;
+    let pick = cams.filter(d => side.test(d.label));
+    if (!pick.length) pick = cams;
+    box.textContent = lines.concat('كاميرات المتصفح: ' + ltr(pick.map(d => d.label || '?').join(' | ') || '—')).join('\n');
+    if (pick.length < 2) return;
+    const h = document.createElement('div'); h.className = 'sub'; h.style.marginTop = '4px'; h.textContent = 'الكاميرا (العدسة)'; wrap.appendChild(h);
+    const seg = document.createElement('div'); seg.className = 'segs';
+    pick.forEach((d, i) => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = String(i + 1); b.title = d.label || '';
+      b.className = d.deviceId === st.deviceId ? 'on' : '';
+      b.onclick = () => switchCamera(d.deviceId);
+      seg.appendChild(b);
+    });
+    wrap.appendChild(seg);
+  }).catch(() => { /* labels unavailable */ });
+}
 function buildCamRows(body) {
   const L = S.live;
   if (!L) return;
   const c = L.caps || {}, tr = L.track;
   let any = 0;
+  camInfo(body);
   const apply = adv => { tr.applyConstraints({ advanced: [adv] }).catch(() => { /* unsupported */ }); };
   const st = tr.getSettings ? tr.getSettings() : {};
   const row = (key, label, fmt, onSet) => {

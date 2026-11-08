@@ -34,7 +34,7 @@
 
 ## حدود يجب معرفتها
 
-- المتصفح يعطي التطبيق الكاميرا الرئيسية افتراضيًا. التنقل بين العدسات (واسعة / تيليفوتو) يعتمد على ما يكشفه Chrome، وأزرار الزوم فوق مداه تقصّ الصورة برمجيًا.
+- المتصفح يعطي التطبيق الكاميرا الرئيسية افتراضيًا. العدسة الواسعة (مثل 0.6x) تظهر تلقائيًا إذا كشفها Chrome، وإذا كشف أكثر من كاميرا خلفية تختار بينها من M ← الكاميرا. وأزرار الزوم فوق مدى الجهاز تقصّ الصورة برمجيًا. شاشة M ← الكاميرا تعرض مقاس البث والزوم المدعوم للتشخيص.
 - ميزات كاميرا النظام (HDR، الوضع الليلي، RAW، ألوان هاسلبلاد) غير متاحة لتطبيقات الويب.
 - الفلاتر تقريب مبني من الصفر لطابع كل فيلم، وليست بيانات رسمية من Fujifilm أو Kodak، والمشروع غير تابع لأي منهما. الأسماء تُستخدم فقط لوصف الطابع.
 - بُني واختُبر على Chrome بدون شاشة وكاميرا افتراضية. التجربة الأولى على جهاز حقيقي لم تتم بعد، فأي سلوك غريب يُبلَّغ عنه.
@@ -70,7 +70,7 @@ A photo + video camera with film looks, **Fuji FP100** as the default photo look
 
 **Font:** Thmanyah Sans is not bundled (its licence forbids redistribution). Import your own copy from Settings → Font; it stays on the device.
 
-**Limits:** web camera access exposes the main camera by default; stock-camera features (HDR, night mode, RAW) are unavailable; looks are original approximations, not Fujifilm/Kodak data. Built and tested in headless Chrome with a virtual camera; a first real-device pass is still pending.
+**Limits:** web camera access exposes the main camera by default (an ultra-wide button such as 0.6x appears when Chrome exposes it, and other back cameras can be picked under M → Camera); stock-camera features (HDR, night mode, RAW) are unavailable; looks are original approximations, not Fujifilm/Kodak data. Built and tested in headless Chrome with a virtual camera; a first real-device pass is still pending.
 
 **Build:** `python3 build.py` writes `index.html` and `sw.js` from `src/`; commit the output because Pages serves `index.html` directly.
 

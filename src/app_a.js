@@ -6,6 +6,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const pad2 = n => String(n).padStart(2, '0');
 const even = n => Math.max(2, Math.round(n / 2) * 2);
 const EMBEDDED = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+const BUILD = '__BUILD__';
 const store = {
   get(k, d) { try { const v = localStorage.getItem('fc.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('fc.' + k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
@@ -517,7 +518,7 @@ function buildSettings() {
   b.appendChild(rs);
   const ab = document.createElement('div');
   ab.style.cssText = 'text-align:center;margin-top:16px;color:var(--ink3);font:500 12px/1.4 var(--mono);letter-spacing:.04em;direction:ltr';
-  ab.textContent = 'shdcam · film looks · FP100 default';
+  ab.textContent = 'shdcam · film looks · FP100 default · v' + BUILD;
   b.appendChild(ab);
   refreshLiveNote();
 }

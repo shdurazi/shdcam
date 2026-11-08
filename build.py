@@ -31,6 +31,8 @@ def main():
     with open(os.path.join(SRC, 'sample.jpg'), 'rb') as f:
         b64 = base64.b64encode(f.read()).decode()
     js = libs + '\n(function(){\n"use strict";\nconst SAMPLE_B64="' + b64 + '";\n' + app + '\n})();\n'
+    build_id = hashlib.sha1((css + js).encode('utf-8')).hexdigest()[:7]
+    js = js.replace("'__BUILD__'", "'" + build_id + "'")
     if '</script' in js.lower():
         sys.exit('JS contains </script')
 
@@ -62,7 +64,7 @@ def main():
     rest = body[cut:]
     html = (
         '<!doctype html>\n<html lang="ar">\n<head>\n<meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
+        '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">\n'
         '<meta name="theme-color" content="#0a0a0b">\n'
         '<meta name="mobile-web-app-capable" content="yes">\n'
         '<meta name="apple-mobile-web-app-capable" content="yes">\n'
@@ -75,6 +77,14 @@ def main():
         'html{background:#0a0a0b}body{margin:0}</style>\n'
         + head_bits + '</head>\n<body>\n' + rest +
         '\n<script>\nif("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost")){'
+        'var had=!!navigator.serviceWorker.controller;'
+        'navigator.serviceWorker.addEventListener("controllerchange",function(){'
+        'if(!had){had=true;return}'
+        'if(document.getElementById("upd"))return;'
+        'var b=document.createElement("button");b.id="upd";b.type="button";'
+        'b.textContent="\u0641\u064a\u0647 \u062a\u062d\u062f\u064a\u062b \u062c\u062f\u064a\u062f \u00b7 \u0627\u0636\u063a\u0637 \u0644\u0644\u062a\u062d\u0645\u064a\u0644";'
+        'b.style.cssText="position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 10px);z-index:90;padding:11px 18px;border:0;border-radius:22px;background:#e5432a;color:#fff;font:600 13px var(--font,system-ui);box-shadow:0 8px 28px rgba(0,0,0,.55)";'
+        'b.onclick=function(){location.reload()};document.body.appendChild(b)});'
         'window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}\n</script>\n'
         '</body>\n</html>\n'
     )
