@@ -1,0 +1,107 @@
+<title>shdcam</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600&display=swap">
+<style>
+/*@@CSS@@*/
+</style>
+<div id="app">
+  <header id="top">
+    <div class="grp">
+      <button class="chip" id="btnFmt" type="button" aria-label="الجودة">JPG</button>
+      <button class="chip" id="btnAspect" type="button" aria-label="نسبة الأبعاد">ORIG</button>
+      <button class="chip live" id="btnLive" type="button" aria-label="المعاينة الحية" hidden>LIVE</button>
+    </div>
+    <div class="grp">
+      <button class="ib" id="btnFlash" type="button" aria-label="الفلاش" hidden></button>
+      <button class="ib" id="btnTimer" type="button" aria-label="المؤقت" hidden></button>
+      <button class="ib" id="btnImport" type="button" aria-label="اختيار من المعرض"></button>
+      <button class="ib" id="btnSet" type="button" aria-label="الإعدادات"></button>
+    </div>
+  </header>
+
+  <main id="stage">
+    <div id="frame">
+      <canvas id="view"></canvas>
+      <div id="grid"><i></i><i></i><i></i><i></i></div>
+      <div id="ring"></div>
+      <div id="nm"></div>
+      <div id="badge"></div>
+      <div id="flash"></div>
+      <div id="count"></div>
+      <button id="btnPlay" type="button" aria-label="تشغيل" hidden></button>
+      <div id="vprog" hidden><i></i></div>
+      <button class="ib sm" id="btnCmp" type="button" aria-label="اضغط مطولًا لمقارنة الأصل"></button>
+      <div id="hint"></div>
+      <div id="lens" hidden></div>
+      <div id="corner">
+        <button class="rb" id="btnM" type="button" aria-label="الضبط">M</button>
+        <button class="rb" id="btnGrid" type="button" aria-label="الشبكة"></button>
+      </div>
+    </div>
+  </main>
+
+  <section id="panel">
+    <div id="tabs" role="tablist"></div>
+    <div id="shelf"></div>
+    <div id="modes">
+      <button type="button" data-mode="photo" class="on">صورة</button>
+      <button type="button" data-mode="video">فيديو</button>
+    </div>
+    <div id="srow">
+      <button class="libbtn" id="btnLib" type="button" aria-label="المكتبة"></button>
+      <button id="btnShutter" type="button" aria-label="التقاط"><i></i></button>
+      <button class="ib big" id="btnSide" type="button" aria-label="قلب الكاميرا"></button>
+    </div>
+  </section>
+</div>
+
+<div id="scrim"></div>
+
+<section class="sheet" id="shSet" aria-label="الإعدادات">
+  <div class="grab"></div>
+  <h2>الإعدادات</h2>
+  <div id="setBody"></div>
+</section>
+
+<section class="sheet" id="shPro" aria-label="الضبط">
+  <div class="grab"></div>
+  <div class="segs" id="proTabs">
+    <button type="button" data-p="adj" class="on">ضبط الصورة</button>
+    <button type="button" data-p="fx">تأثيرات الفيلم</button>
+    <button type="button" data-p="cam" hidden>الكاميرا</button>
+  </div>
+  <div id="proBody"></div>
+</section>
+
+<div id="viewer" role="dialog" aria-label="المكتبة">
+  <div id="vTop">
+    <button class="ib" id="vClose" type="button" aria-label="إغلاق"></button>
+    <div id="vTitle"></div>
+    <button class="ib" id="vDel" type="button" aria-label="حذف"></button>
+  </div>
+  <div id="vBody"><div id="vNav"><button type="button" id="vPrev" aria-label="السابق"></button><button type="button" id="vNext" aria-label="التالي"></button></div></div>
+  <div id="vMsg"></div>
+  <div id="vBot">
+    <button type="button" id="vShare">مشاركة</button>
+    <button type="button" id="vSave" class="pri">حفظ في الجهاز</button>
+  </div>
+</div>
+
+<div id="bake">
+  <div id="bakeCv"></div>
+  <div id="bakeTxt">جارٍ التحميض…</div>
+  <div id="bakeBar"><i></i></div>
+  <div id="bakeSub">لا تقفل الصفحة حتى ينتهي</div>
+  <button class="btnw" id="bakeCancel" type="button" style="max-width:240px">إلغاء</button>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<input id="inCamPhoto" type="file" accept="image/*" capture="environment" hidden>
+<input id="inCamVideo" type="file" accept="video/*" capture="environment" hidden>
+<input id="inGallery" type="file" accept="image/*,video/*" multiple hidden>
+<input id="inFont" type="file" accept=".otf,.ttf,.woff,.woff2,font/otf,font/ttf,font/woff,font/woff2" multiple hidden>
+
+<script>
+/*@@JS@@*/
+</script>

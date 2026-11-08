@@ -1,0 +1,9 @@
+# fonts are licensed separately and are never committed
+*.otf
+*.ttf
+*.woff
+*.woff2
+
+__pycache__/
+.DS_Store
+out/
